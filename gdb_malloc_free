@@ -4,15 +4,16 @@ set logging on
 break malloc
 commands
   silent
-  bt 4
+  #bt 4
   up
   break
   commands
     silent
-    clear
-    print/x $rax
+    bt 3
+    #clear
+    print/x $eax
     cont
-  end
+    end
   cont
 end
 break free
@@ -21,3 +22,4 @@ commands
   bt 1
   cont
 end
+#cont
