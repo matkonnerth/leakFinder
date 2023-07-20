@@ -9,8 +9,7 @@ commands
   break
   commands
     silent
-    bt 3
-    #clear
+    bt
     print/x $eax
     cont
     end
