@@ -4,3 +4,5 @@ project(leakFinder C CXX)
 add_subdirectory(examples)
 
 add_executable(leakfinder leakfinder.cpp)
+
+add_library(mallocCatcher SHARED mallocCatcher.cpp)

@@ -31,10 +31,6 @@ public:
         }
     }
 
-    
-
-    
-
 private:
     std::string removeAdresses(const std::string& stackFrame) const
     {
@@ -99,7 +95,7 @@ public:
        
         if(!found)
         {
-            std::cout << "dealloc, addr: " << addr << " no allocation found" << "\n";
+            //std::cout << "dealloc, addr: " << addr << " no allocation found" << "\n";
             m_deallocsNotFound.push_back(addr);
             return;
         }
@@ -111,12 +107,20 @@ public:
     {
         std::cout << "heap dump" << "\n";
        
+      
         for(const auto& bt : m_backtraces)
         {
-            std::cout << "backtrace, alloc count: " << bt.second.size() << "\n";
-            bt.first.dump();
-            std::cout << "\n";
+                if(bt.second.size()>10)
+                {
+                    std::cout << "backtrace, alloc count: " << bt.second.size() << "\n";
+                    bt.first.dump();
+                    std::cout << "\n";   
+                }                      
         }
+
+        
+
+        return;
 
 
         std::cout << "\n";
@@ -152,36 +156,56 @@ int main(int argc, char* argv[])
 
     Backtrace bt{};
 
+    std::string mallocAddr{};
+
+    int lineCnt = 0;
+
     while(std::getline(file, line))
     {
-
-        //std::cout << "process: " << line << "\n";
-        if(line[0]=='$')
+        lineCnt++;
+        if(lineCnt%1000==0)
         {
+            std::cout << "line: " << std::to_string(lineCnt) << "\n";
+        }
+        //std::cout << "process: " << line << "\n";
+        if(line.find("#malloc")!=std::string::npos)
+        {
+            if(!mallocAddr.empty())
+            {
+                heap.alloc(mallocAddr, bt);  
+                mallocAddr=std::string{};
+            }
             auto pos = line.find("0x");
             auto addr = line.substr(pos);
-            heap.alloc(addr, bt);
-        }
-        else if(line.find("#0  __GI___libc_free")!=std::string::npos)
-        {
-            auto start = line.find("0x");
-            auto end = line.find(")");
-            auto addr = line.substr(start, end - start);
-            heap.dealloc(addr);
+
+            mallocAddr=addr;
+
             
-        }
-        else if(line[0]=='#')
-        {
-            bt.addStack(line);
-        }
-        //reset backtrace
-        else if(line[0]=='[')
-        {
+
+            //new Backtrace
             bt = Backtrace{};
-        }        
+                      
+        }
+        else if(line.find("free()")!=std::string::npos)
+        {
+            if(!mallocAddr.empty())
+            {
+                heap.alloc(mallocAddr, bt);  
+                mallocAddr=std::string{};
+            }
+            auto start = line.find("0x");
+            if(start!=std::string::npos)
+            {
+                auto addr = line.substr(start);
+                heap.dealloc(addr);
+            }   
+
+            //new Backtrace
+            bt = Backtrace{};      
+        }
         else
         {
-            ;
+            bt.addStack(line);
         }
     }
 
