@@ -20,7 +20,6 @@ class Heap final
 public:
     Heap()
     {
-        //log = fopen("memory.txt", "w+");
         logfd = fileno(stderr);
     }
 
@@ -28,6 +27,7 @@ public:
     {
         fprintf(stderr, "allocs %d\n", allocs);
         fprintf(stderr, "deallocs %d\n", deallocs);
+        fprintf(stderr, "reallocs %d\n", reallocs);
     }
 
     void alloc(void* adr)
@@ -39,13 +39,30 @@ public:
 
         fprintf(stderr, "#malloc: %p\n", adr);
 
-        const int BUFFER_SIZE=20;
+        
         void* buffer[BUFFER_SIZE];
         int cnt = backtrace(buffer, BUFFER_SIZE);
         backtrace_symbols_fd(buffer, cnt, logfd);
         cnt=0;
         
         allocs++;
+    }
+
+    void realloc(void *old, void* newAdr) {
+      if (!enabled) {
+        return;
+      }
+
+      fprintf(stderr, "#realloc: %p, %p\n", old, newAdr);
+      fprintf(stderr, "#free(): %p\n", old);
+      fprintf(stderr, "#malloc: %p\n", newAdr);
+
+      void *buffer[BUFFER_SIZE];
+      int cnt = backtrace(buffer, BUFFER_SIZE);
+      backtrace_symbols_fd(buffer, cnt, logfd);
+      cnt = 0;
+
+      reallocs++;
     }
 
     void dealloc(const void* adr)
@@ -67,16 +84,20 @@ private:
     int logfd{};
     int allocs{0};
     int deallocs{0};
+    int reallocs{0};
     int cnt{0};
     bool enabled{true};
+    const int BUFFER_SIZE = 10;
 };
 
 static Heap MyHeap{};
 
 
 
-static void* (*real_malloc)(size_t)=NULL;
-static void (*real_free)(void*)=NULL;
+static void* (*real_malloc)(size_t)=nullptr;
+static void (*real_free)(void*)=nullptr;
+static void* (*real_realloc)(void*, size_t)=nullptr;
+
 
 static void init_malloc(void)
 {
@@ -84,6 +105,13 @@ static void init_malloc(void)
     if (NULL == real_malloc) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
     }
+}
+
+static void init_realloc(void) {
+  real_realloc = (void *(*)(void*, size_t))dlsym(RTLD_NEXT, "realloc");
+  if (NULL == real_realloc) {
+    fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
+  }
 }
 
 static void init_free(void)
@@ -115,6 +143,17 @@ void *malloc(size_t size)
     }
     inAlloc=false;
     return p;
+}
+
+void *realloc(void* old, size_t size) {
+  if (real_realloc == NULL) {
+    init_realloc();
+  }
+
+  void *newAdr = real_realloc(old, size);
+
+  MyHeap.realloc(old, newAdr);
+  return newAdr;
 }
 
 void free(void* adr)

@@ -110,7 +110,7 @@ public:
       
         for(const auto& bt : m_backtraces)
         {
-                if(bt.second.size()>10)
+                if(bt.second.size()>0)
                 {
                     std::cout << "backtrace, alloc count: " << bt.second.size() << "\n";
                     bt.first.dump();
