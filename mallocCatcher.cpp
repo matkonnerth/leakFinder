@@ -39,9 +39,9 @@ public:
 
         fprintf(stderr, "#malloc: %p\n", adr);
 
-        const int BUFFER_SIZE=10;
+        const int BUFFER_SIZE=20;
         void* buffer[BUFFER_SIZE];
-        int cnt = backtrace(buffer, BUFFER_SIZE);       
+        int cnt = backtrace(buffer, BUFFER_SIZE);
         backtrace_symbols_fd(buffer, cnt, logfd);
         cnt=0;
         
@@ -54,7 +54,7 @@ public:
         {
             return;
         }
-        fprintf(stderr, "free(): %p\n", adr);
+        fprintf(stderr, "#free(): %p\n", adr);
         deallocs++;
     }
 
@@ -68,7 +68,7 @@ private:
     int allocs{0};
     int deallocs{0};
     int cnt{0};
-    bool enabled{false};
+    bool enabled{true};
 };
 
 static Heap MyHeap{};
@@ -97,22 +97,23 @@ static void init_free(void)
 void *malloc(size_t size)
 {
     if(real_malloc==NULL) {
+        inAlloc=true;
         init_malloc();
-    }    
+        //lets get backtrace/unwind setup
+        const int BUFFER_SIZE = 20;
+        void *buffer[BUFFER_SIZE];
+        int cnt = backtrace(buffer, BUFFER_SIZE);
+        backtrace_symbols_fd(buffer, cnt, 2);
+    }
 
     void* p = real_malloc(size);
     
     if(!inAlloc)
     {
         inAlloc=true;
-        MyHeap.alloc(p);        
+        MyHeap.alloc(p);
     }
     inAlloc=false;
-
-    
-    
-
-  
     return p;
 }
 
@@ -123,10 +124,6 @@ void free(void* adr)
     }
 
     MyHeap.dealloc(adr);
-
-    //fprintf(log, "#free: %p\n", adr);
-
-    //fprintf(stderr, "free(): %p\n", adr);
     real_free(adr);
     return;
 }

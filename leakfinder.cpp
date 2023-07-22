@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
             bt = Backtrace{};
                       
         }
-        else if(line.find("free()")!=std::string::npos)
+        else if(line.find("#free()")!=std::string::npos)
         {
             if(!mallocAddr.empty())
             {
