@@ -92,39 +92,46 @@ private:
 
 static Heap MyHeap{};
 
-
-
-static void* (*real_malloc)(size_t)=nullptr;
-static void (*real_free)(void*)=nullptr;
-static void* (*real_realloc)(void*, size_t)=nullptr;
+// https://www.gnu.org/software/libc/manual/html_node/Replacing-malloc.html
+static void* (*malloc_impl)(size_t)=nullptr;
+static void *(*calloc_impl)(size_t, size_t) = nullptr;
+static void (*free_impl)(void*)=nullptr;
+static void* (*realloc_impl)(void*, size_t)=nullptr;
 
 
 static void init_malloc(void)
 {
-    real_malloc = (void* (*)(size_t))dlsym(RTLD_NEXT, "malloc");
-    if (NULL == real_malloc) {
+    malloc_impl = (void* (*)(size_t))dlsym(RTLD_NEXT, "malloc");
+    if (nullptr == malloc_impl) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
     }
 }
 
+static void init_calloc(void) {
+  calloc_impl = (void *(*)(size_t, size_t))dlsym(RTLD_NEXT, "calloc");
+  if (nullptr == calloc_impl) {
+    fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
+  }
+}
+
 static void init_realloc(void) {
-  real_realloc = (void *(*)(void*, size_t))dlsym(RTLD_NEXT, "realloc");
-  if (NULL == real_realloc) {
+  realloc_impl = (void *(*)(void*, size_t))dlsym(RTLD_NEXT, "realloc");
+  if (nullptr == realloc_impl) {
     fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
   }
 }
 
 static void init_free(void)
 {
-    real_free = (void (*)(void*))dlsym(RTLD_NEXT, "free");
-    if (NULL == real_free) {
+    free_impl = (void (*)(void*))dlsym(RTLD_NEXT, "free");
+    if (nullptr == free_impl) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
     }
 }
 
 void *malloc(size_t size)
 {
-    if(real_malloc==NULL) {
+    if(malloc_impl==nullptr) {
         inAlloc=true;
         init_malloc();
         //lets get backtrace/unwind setup
@@ -134,7 +141,7 @@ void *malloc(size_t size)
         backtrace_symbols_fd(buffer, cnt, 2);
     }
 
-    void* p = real_malloc(size);
+    void* p = malloc_impl(size);
     
     if(!inAlloc)
     {
@@ -145,12 +152,24 @@ void *malloc(size_t size)
     return p;
 }
 
+void *calloc(size_t elements, size_t size) {
+  if (calloc_impl == nullptr) {
+    init_calloc();
+  }
+
+  void *p = calloc_impl(elements, size);
+
+  //handle like alloc
+  MyHeap.alloc(p);
+  return p;
+}
+
 void *realloc(void* old, size_t size) {
-  if (real_realloc == NULL) {
+  if (realloc_impl == nullptr) {
     init_realloc();
   }
 
-  void *newAdr = real_realloc(old, size);
+  void *newAdr = realloc_impl(old, size);
 
   MyHeap.realloc(old, newAdr);
   return newAdr;
@@ -158,12 +177,12 @@ void *realloc(void* old, size_t size) {
 
 void free(void* adr)
 {
-    if(real_free==NULL) {
+    if(free_impl==nullptr) {
         init_free();
     }
 
     MyHeap.dealloc(adr);
-    real_free(adr);
+    free_impl(adr);
     return;
 }
 
